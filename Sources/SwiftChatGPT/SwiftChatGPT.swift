@@ -88,9 +88,6 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
     func processPartialReply<T> (bytes: URLSession.AsyncBytes, _ f: @escaping (Response) -> T) -> AsyncThrowingStream<T,Error> {
         return AsyncThrowingStream (bufferingPolicy: .unbounded) { continuation in
             Task {
-                for try await byte in bytes {
-                    print (byte)
-                }
                 for try await line in bytes.lines {
                     if line.starts(with: "data: {") {
                         let rest = line.index(line.startIndex, offsetBy: 6)
