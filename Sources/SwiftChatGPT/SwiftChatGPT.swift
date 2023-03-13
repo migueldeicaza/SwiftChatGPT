@@ -85,7 +85,7 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
         return bytes
     }
     
-    func processPartialReply<T> (bytes: URLSession.AsyncBytes, _ f: @escaping (Response) -> T) -> AsyncThrowingStream<T,Error> {
+    func processPartialReply<T> (bytes: URLSession.AsyncBytes, _ f: @escaping (Response) -> T, onComplete: @escaping () -> ()) -> AsyncThrowingStream<T,Error> {
         return AsyncThrowingStream (bufferingPolicy: .unbounded) { continuation in
             Task {
                 for try await line in bytes.lines {
@@ -100,9 +100,15 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
                         break
                     }
                 }
+                onComplete ()
                 continuation.finish()
             }
         }
+    }
+    
+    func recordInteraction (prompt: String, reply: String) {
+        history.append (Message (role: "user", content: prompt));
+        history.append (Message (role: "assistant", content: reply));
     }
     
     /// Sends the input as the new chat and returns a an async stream of responses
@@ -114,7 +120,16 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
         guard let bytes = await startRequest (for: input) else {
             return nil
         }
-        return processPartialReply (bytes: bytes) { response in response }
+        var result = ""
+        return processPartialReply (bytes: bytes) { response in
+            
+            if let c = response.choices.first?.delta?.content {
+                result += c
+            }
+            return response
+        } onComplete: {
+            self.recordInteraction (prompt: input, reply: result)
+        }
     }
     
     /// Sends the input as the new chat and returns a an async stream of strings
@@ -126,11 +141,15 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
         guard let bytes = await startRequest (for: input) else {
             return nil
         }
+        var result = ""
         return processPartialReply (bytes: bytes) { response in
             if let f = response.choices.first?.delta?.content {
+                result += f
                 return f
             }
             return nil
+        } onComplete: {
+            self.recordInteraction (prompt: input, reply: result)
         }
     }
 }
