@@ -19,6 +19,7 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
     let key: String
     var history: [Message] = []
     let decoder = JSONDecoder()
+    public var model = "gpt-3.5-turbo"
     
     /// Initializes SwiftChatGPT with an OpenAI API key
     /// - Parameter key: an OpenAI API Key
@@ -67,7 +68,7 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
 
     func startRequest (for input: String) async -> URLSession.AsyncBytes? {
         let requestMessages = buildMessageHistory (newPrompt: input)
-        let chatRequest = Request(model: "gpt-3.5-turbo", messages: requestMessages, stream: true)
+        let chatRequest = Request(model: self.model, messages: requestMessages, stream: true)
         guard let data = try? JSONEncoder().encode(chatRequest) else {
             return nil
         }
