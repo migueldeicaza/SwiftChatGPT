@@ -1,3 +1,3 @@
 # SwiftChatGPT
 
-A description of this package.
+Very simple API to access the ChatGPT API with the streaming API.
