@@ -16,7 +16,7 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
     let openAiApiUrl = URL (string: "https://api.openai.com/v1/chat/completions")!
     let urlSessionConfig: URLSessionConfiguration
     var session: URLSession!
-    let key: String
+    public var key: String
     var history: [Message] = []
     let decoder = JSONDecoder()
     public var model = "gpt-3.5-turbo"
