@@ -64,9 +64,15 @@ public struct Response: Codable {
     public var choices: [Choice]
 }
 
+// Just so I do not need to deal with Response having nullable id, object, created, choices
+public struct ShortResponse: Codable {
+    public var error: ResponseError
+}
+
 public struct ResponseError: Codable {
     public var message: String
     public var type: String
+    public var code: String
 }
 
 public struct Choice: Codable {

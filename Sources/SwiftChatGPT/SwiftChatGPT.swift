@@ -6,10 +6,29 @@
 //
 import Foundation
 
-public enum ChatError: Error {
-    case responseError
+public enum OpenAIError: Error {
+    case serializationError
+    case networkError(String)
+    case responseError(Int, String)
+    case apiError(String)
+    
+    public var description: String {
+        switch self {
+        case .serializationError:
+            return "Internal error creating a request"
+        case .networkError (let detail):
+            return "Network communication error: \(detail)"
+        case .responseError(let code, let detail):
+            return "Error processing the error response for HTTP code \(code): \(detail)"
+        case .apiError(let detail):
+            return "OpenAI API error: \(detail)"
+        }
+    }
 }
 
+struct OpenAIErrorJson: Codable {
+    
+}
 /// Access to ChatGPT API from OpenAI
 public class ChatGPT: NSObject, URLSessionDataDelegate {
     let defaultSystemMessage = Message(role: "system", content: "You are a helpful assistant.")
@@ -66,24 +85,43 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
         return requestMessages
     }
 
-    func startRequest (for input: String) async -> URLSession.AsyncBytes? {
+    func startRequest (for input: String) async -> Result<URLSession.AsyncBytes,OpenAIError> {
         let requestMessages = buildMessageHistory (newPrompt: input)
         let chatRequest = Request(model: self.model, messages: requestMessages, stream: true)
         guard let data = try? JSONEncoder().encode(chatRequest) else {
-            return nil
+            return .failure(.serializationError)
         }
         let request = makeUrlRequest (data: data)
 
-        // Iterate using bytes
-        guard let (bytes, response) = try? await session.bytes(for: request, delegate: self) else {
-            return nil
+        
+        let bytes: URLSession.AsyncBytes
+        let response: URLResponse
+        do {
+            (bytes, response) = try await session.bytes(for: request, delegate: self)
+        } catch (let e){
+            return .failure(.networkError (e.localizedDescription))
         }
         
-        guard let httpResponse = response as? HTTPURLResponse,
-                httpResponse.statusCode == 200 else {
-            return nil
+        guard let httpResponse = response as? HTTPURLResponse else {
+            return .failure(.networkError("Internal error: httpResponse is not an HTTPURLResponse"))
         }
-        return bytes
+        guard httpResponse.statusCode == 200 else {
+            var data = Data ()
+            do {
+                for try await x in bytes {
+                    data.append(x)
+                }
+            } catch (let e){
+                return .failure(.networkError (e.localizedDescription))
+            }
+            do {
+                let short: ShortResponse = try JSONDecoder().decode(ShortResponse.self, from: data)
+                return .failure (.apiError (short.error.message))
+            } catch (let e) {
+                return .failure(.responseError(httpResponse.statusCode, e.localizedDescription))
+            }
+        }
+        return .success(bytes)
     }
     
     func processPartialReply<T> (bytes: URLSession.AsyncBytes, _ f: @escaping (Response) -> T, onComplete: @escaping () -> ()) -> AsyncThrowingStream<T,Error> {
@@ -117,19 +155,22 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
     /// Usage:
     /// for try await response in chat.streamChatResponses ("Hello") { print (response) }
     ///
-    public func streamChatResponses (_ input: String) async throws -> AsyncThrowingStream<Response,Error>? {
-        guard let bytes = await startRequest (for: input) else {
-            return nil
-        }
-        var result = ""
-        return processPartialReply (bytes: bytes) { response in
-            
-            if let c = response.choices.first?.delta?.content {
-                result += c
+    public func streamChatResponses (_ input: String) async -> Result <AsyncThrowingStream<Response,Error>,OpenAIError> {
+        switch await startRequest (for: input) {
+        case .success(let bytes):
+            var result = ""
+            let reply = processPartialReply (bytes: bytes) { response in
+                
+                if let c = response.choices.first?.delta?.content {
+                    result += c
+                }
+                return response
+            } onComplete: {
+                self.recordInteraction (prompt: input, reply: result)
             }
-            return response
-        } onComplete: {
-            self.recordInteraction (prompt: input, reply: result)
+            return .success(reply)
+        case .failure(let error):
+            return .failure(error)
         }
     }
     
@@ -138,19 +179,22 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
     /// Usage:
     /// for try await response in chat.streamChatResponses ("Hello") { print (response) }
     ///
-    public func streamChatText (_ input: String) async throws -> AsyncThrowingStream<String?,Error>? {
-        guard let bytes = await startRequest (for: input) else {
-            return nil
-        }
-        var result = ""
-        return processPartialReply (bytes: bytes) { response in
-            if let f = response.choices.first?.delta?.content {
-                result += f
-                return f
+    public func streamChatText (_ input: String) async ->  Result <AsyncThrowingStream<String?,Error>, OpenAIError> {
+        switch await startRequest(for: input) {
+        case .success(let bytes):
+            var result = ""
+            let reply = processPartialReply (bytes: bytes) { response -> String? in
+                if let f = response.choices.first?.delta?.content {
+                    result += f
+                    return f
+                }
+                return nil
+            } onComplete: {
+                self.recordInteraction (prompt: input, reply: result)
             }
-            return nil
-        } onComplete: {
-            self.recordInteraction (prompt: input, reply: result)
+            return .success (reply)
+        case .failure(let error):
+            return .failure (error)
         }
     }
 }
