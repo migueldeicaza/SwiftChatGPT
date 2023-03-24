@@ -155,8 +155,8 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
     /// Usage:
     /// for try await response in chat.streamChatResponses ("Hello") { print (response) }
     ///
-    public func streamChatResponses (_ input: String) async -> Result <AsyncThrowingStream<Response,Error>,OpenAIError> {
-        switch await startRequest (for: input) {
+    public func streamChatResponses (_ input: String, temperature: Float = 1.0) async -> Result <AsyncThrowingStream<Response,Error>,OpenAIError> {
+        switch await startRequest (for: input, temperature: temperature) {
         case .success(let bytes):
             var result = ""
             let reply = processPartialReply (bytes: bytes) { response in
