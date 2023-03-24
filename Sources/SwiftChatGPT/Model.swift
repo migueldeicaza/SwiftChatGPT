@@ -11,8 +11,8 @@ import Foundation
 public struct Request: Codable {
     public var model: String
     public var messages: [Message]
-    public var temperature: Int? = nil
-    public var top_p: Int? = nil
+    public var temperature: Float? = nil
+    public var top_p: Float? = nil
     public var n: Int? = nil
     public var stream: Bool? = nil
     public var stop: Stop? = nil

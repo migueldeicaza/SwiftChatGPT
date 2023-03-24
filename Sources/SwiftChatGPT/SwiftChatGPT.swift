@@ -85,9 +85,9 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
         return requestMessages
     }
 
-    func startRequest (for input: String) async -> Result<URLSession.AsyncBytes,OpenAIError> {
+    func startRequest (for input: String, temperature: Float) async -> Result<URLSession.AsyncBytes,OpenAIError> {
         let requestMessages = buildMessageHistory (newPrompt: input)
-        let chatRequest = Request(model: self.model, messages: requestMessages, stream: true)
+        let chatRequest = Request(model: self.model, messages: requestMessages, temperature: temperature, stream: true)
         guard let data = try? JSONEncoder().encode(chatRequest) else {
             return .failure(.serializationError)
         }
@@ -179,8 +179,8 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
     /// Usage:
     /// for try await response in chat.streamChatResponses ("Hello") { print (response) }
     ///
-    public func streamChatText (_ input: String) async ->  Result <AsyncThrowingStream<String?,Error>, OpenAIError> {
-        switch await startRequest(for: input) {
+    public func streamChatText (_ input: String, temperature: Float = 1.0) async ->  Result <AsyncThrowingStream<String?,Error>, OpenAIError> {
+        switch await startRequest(for: input, temperature: temperature) {
         case .success(let bytes):
             var result = ""
             let reply = processPartialReply (bytes: bytes) { response -> String? in
