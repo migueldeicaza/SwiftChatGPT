@@ -72,7 +72,7 @@ public struct ShortResponse: Codable {
 public struct ResponseError: Codable {
     public var message: String
     public var type: String
-    public var code: String
+    public var code: String?
 }
 
 public struct Choice: Codable {

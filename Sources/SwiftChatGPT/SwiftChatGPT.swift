@@ -44,6 +44,9 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
     /// - Parameter key: an OpenAI API Key
     public init (key: String) {
         self.key = key
+        if key.last == "\n" {
+            print ("This key ends with a newline, are you sure this is ok?")
+        }
         urlSessionConfig = URLSessionConfiguration.default
         urlSessionConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
         urlSessionConfig.urlCache = nil
